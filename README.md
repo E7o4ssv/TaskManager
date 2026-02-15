@@ -67,6 +67,11 @@ npm run db:seed
 - maria@company.com — Мария Сидорова
 - dmitry@company.com — Дмитрий Козлов
 
+## Деплой на сервер
+
+При пуше в ветку **main** приложение автоматически деплоится на сервер через GitHub Actions.  
+Подробная настройка (сервер + секреты): **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
 ## Стек
 
 - Next.js 16 (App Router), React 19, TypeScript
