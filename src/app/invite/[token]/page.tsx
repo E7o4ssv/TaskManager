@@ -47,7 +47,8 @@ export default function InvitePage() {
         setInvite(inviteData);
         if (meRes.ok) {
           const meData = await meRes.json();
-          setUser(meData.user || meData);
+          const u = meData.user ?? meData;
+          setUser(u?.id ? u : null);
         }
       } catch {
         if (!cancelled) setError("Ошибка загрузки");
@@ -58,6 +59,13 @@ export default function InvitePage() {
     load();
     return () => { cancelled = true; };
   }, [token]);
+
+  // Если приглашение валидно, но пользователь не авторизован — сразу на вход (после логина вернёт сюда)
+  const shouldRedirectToLogin = !loading && invite && !error && !user?.id;
+  useEffect(() => {
+    if (!shouldRedirectToLogin) return;
+    router.replace(loginUrl);
+  }, [shouldRedirectToLogin, router, loginUrl]);
 
   async function joinProject() {
     if (!token || joining) return;
@@ -72,6 +80,10 @@ export default function InvitePage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 401 || data.error === "Unauthorized") {
+          router.replace(loginUrl);
+          return;
+        }
         setError(data.error || "Не удалось присоединиться");
         return;
       }
@@ -88,6 +100,14 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
         <p className="text-[var(--foreground-muted)]">Загрузка…</p>
+      </div>
+    );
+  }
+
+  if (shouldRedirectToLogin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
+        <p className="text-[var(--foreground-muted)]">Перенаправление на вход…</p>
       </div>
     );
   }
