@@ -51,8 +51,10 @@ export async function PATCH(
   if (description !== undefined) data.description = description;
   if (priority !== undefined) data.priority = priority;
   if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
-  if (assigneeId !== undefined) data.assigneeId = assigneeId || null;
-  if (assigneeId !== undefined && !assigneeId) data.acceptedAt = null;
+  if (assigneeId !== undefined) {
+    data.assigneeId = assigneeId || null;
+    data.acceptedAt = null; // при любой смене ответственного новый исполнитель должен подтвердить задачу
+  }
   if (projectId !== undefined) data.projectId = projectId || null;
   if (documentId !== undefined) data.documentId = documentId || null;
   if (status !== undefined) {
