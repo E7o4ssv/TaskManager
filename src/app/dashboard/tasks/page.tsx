@@ -82,6 +82,11 @@ export default function TasksPage() {
   }, [projectId]);
 
   useEffect(() => {
+    const interval = setInterval(() => load(), 15000);
+    return () => clearInterval(interval);
+  }, [projectId]);
+
+  useEffect(() => {
     if ((modal === "new" || modal === "edit") && form.projectId) {
       Promise.all([
         fetch(`/api/files?projectId=${encodeURIComponent(form.projectId)}`).then((r) => (r.ok ? r.json() : [])),

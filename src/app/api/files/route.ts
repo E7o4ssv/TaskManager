@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const projectId = (formData.get("projectId") as string | null)?.trim();
+  const customName = (formData.get("name") as string | null)?.trim();
   if (!file) {
     return Response.json({ error: "File required" }, { status: 400 });
   }
@@ -39,17 +40,19 @@ export async function POST(req: NextRequest) {
   if (!allowed) {
     return Response.json({ error: "No access to this project" }, { status: 403 });
   }
+  const displayName = customName || file.name;
+  const baseForPath = (customName || file.name).replace(/[^a-zA-Z0-9.-]/g, "_");
   try {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const uploadDir = path.join(process.cwd(), "public", "uploads");
     await mkdir(uploadDir, { recursive: true });
-    const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const safeName = `${Date.now()}-${baseForPath}`;
     const filePath = path.join(uploadDir, safeName);
     await writeFile(filePath, buffer);
     const record = await prisma.file.create({
       data: {
-        name: file.name,
+        name: displayName,
         path: `/uploads/${safeName}`,
         size: buffer.length,
         mimeType: file.type || "application/octet-stream",

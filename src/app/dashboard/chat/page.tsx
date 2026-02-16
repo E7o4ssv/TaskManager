@@ -34,6 +34,9 @@ export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [mobileShowList, setMobileShowList] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const initialSelectionDone = useRef(false);
+  const lastMessageCountRef = useRef<number>(0);
+  const selectedNameRef = useRef<string>("Чат");
 
   const selected = conversations.find((c) => c.id === selectedId);
   const usersForDm = currentUserId ? users.filter((u) => u.id !== currentUserId) : users;
@@ -43,7 +46,10 @@ export default function ChatPage() {
     if (res.ok) {
       const data = await res.json();
       setConversations(data);
-      if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
+      if (data.length > 0 && !initialSelectionDone.current) {
+        setSelectedId(data[0].id);
+        initialSelectionDone.current = true;
+      }
     }
     setLoadingList(false);
   }
@@ -54,7 +60,16 @@ export default function ChatPage() {
     const res = await fetch(`/api/conversations/${selectedId}/messages`);
     if (res.ok) {
       const data = await res.json();
+      const prevCount = lastMessageCountRef.current;
       setMessages(data);
+      lastMessageCountRef.current = data.length;
+      if (data.length > prevCount && prevCount > 0 && typeof document !== "undefined" && !document.hasFocus()) {
+        const lastMsg = data[data.length - 1];
+        const fromOthers = lastMsg?.user?.id !== currentUserId;
+        if (fromOthers && "Notification" in window && Notification.permission === "granted") {
+          new Notification(selectedNameRef.current, { body: `${lastMsg?.user?.name ?? "Кто-то"}: ${(lastMsg?.content ?? "").slice(0, 60)}${(lastMsg?.content?.length ?? 0) > 60 ? "…" : ""}` });
+        }
+      }
     }
     setLoadingMessages(false);
   }
@@ -66,6 +81,7 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    lastMessageCountRef.current = 0;
     if (selectedId) loadMessages();
     else setMessages([]);
   }, [selectedId]);
@@ -74,6 +90,16 @@ export default function ChatPage() {
     const interval = selectedId ? setInterval(loadMessages, 3000) : undefined;
     return () => (interval ? clearInterval(interval) : undefined);
   }, [selectedId]);
+
+  useEffect(() => {
+    selectedNameRef.current = selected?.name ?? "Чат";
+  }, [selected?.name]);
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
