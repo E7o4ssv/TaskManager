@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
   if (inv.expiresAt < new Date()) {
     return Response.json({ error: "Срок приглашения истёк" }, { status: 400 });
   }
+  const projectChat = await prisma.conversation.findUnique({
+    where: { projectId: inv.projectId },
+    select: { id: true },
+  });
   await prisma.$transaction([
     prisma.projectMember.upsert({
       where: { projectId_userId: { projectId: inv.projectId, userId: user.id } },
@@ -33,6 +37,17 @@ export async function POST(req: NextRequest) {
       where: { id: inv.id },
       data: { usedAt: new Date() },
     }),
+    ...(projectChat
+      ? [
+          prisma.participant.upsert({
+            where: {
+              conversationId_userId: { conversationId: projectChat.id, userId: user.id },
+            },
+            update: {},
+            create: { conversationId: projectChat.id, userId: user.id },
+          }),
+        ]
+      : []),
   ]);
   return Response.json({
     projectId: inv.projectId,

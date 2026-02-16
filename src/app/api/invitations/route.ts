@@ -1,18 +1,20 @@
 import { NextRequest } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isProjectManager } from "@/lib/project-access";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUserFromRequest(req);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") {
-    return Response.json({ error: "Only managers can create invitations" }, { status: 403 });
-  }
   const body = await req.json();
   const projectId = body.projectId as string | undefined;
   if (!projectId) {
     return Response.json({ error: "projectId required" }, { status: 400 });
+  }
+  const canInvite = await isProjectManager(user.id, projectId);
+  if (!canInvite) {
+    return Response.json({ error: "Только менеджер проекта может создавать приглашения" }, { status: 403 });
   }
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) {

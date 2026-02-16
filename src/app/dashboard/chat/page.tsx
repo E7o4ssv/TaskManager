@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 type Conversation = {
   id: string;
-  type: "group" | "direct";
+  type: "group" | "direct" | "project";
   name: string;
   otherUser?: { id: string; name: string } | null;
+  projectId?: string;
+  projectName?: string;
   updatedAt: string;
 };
 
@@ -17,7 +19,7 @@ type Message = {
   user: { id: string; name: string; email: string };
 };
 
-type User = { id: string; name: string; email: string };
+type User = { id: string; name: string; login?: string | null; email?: string | null };
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -169,9 +171,12 @@ export default function ChatPage() {
                     }`}
                   >
                     <span className="flex h-10 w-10 rounded-xl bg-[var(--border)] text-[var(--foreground-muted)] items-center justify-center text-sm font-semibold shrink-0">
-                      {c.type === "group" ? "Г" : (c.name.slice(0, 1).toUpperCase())}
+                      {c.type === "project" ? "П" : c.type === "group" ? "Г" : (c.name.slice(0, 1).toUpperCase())}
                     </span>
                     <span className="flex-1 min-w-0 truncate font-medium">{c.name}</span>
+                    {c.type === "project" && (
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] shrink-0">Проект</span>
+                    )}
                     {c.type === "direct" && (
                       <span className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] shrink-0">ЛС</span>
                     )}
@@ -201,7 +206,7 @@ export default function ChatPage() {
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg lg:text-xl font-bold text-[var(--foreground)] truncate">{selected.name}</h1>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {selected.type === "group" ? "Общий чат команды" : "Личная переписка"}
+                  {selected.type === "project" ? "Чат проекта" : selected.type === "group" ? "Общий чат команды" : "Личная переписка"}
                 </p>
               </div>
             </header>
@@ -276,7 +281,7 @@ export default function ChatPage() {
                     className="w-full text-left px-3 py-2.5 rounded-[var(--radius)] hover:bg-[var(--background-elevated)] text-[var(--foreground)] transition"
                   >
                     <span className="font-medium">{u.name}</span>
-                    <span className="text-[var(--foreground-muted)] text-sm ml-2">({u.email})</span>
+                    <span className="text-[var(--foreground-muted)] text-sm ml-2">({u.login || u.email || ""})</span>
                   </button>
                 </li>
               ))}

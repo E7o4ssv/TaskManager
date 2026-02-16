@@ -13,11 +13,14 @@ type Task = {
   priority: string;
   dueDate: string | null;
   projectId: string | null;
-  project: { id: string; name: string } | null;
+  project: { id: string; name: string; managerId?: string | null } | null;
   documentId: string | null;
   document: { id: string; name: string; path: string } | null;
   assignee: { id: string; name: string } | null;
   creator: { id: string; name: string };
+  acceptedAt: string | null;
+  confirmedBy: { id: string; name: string } | null;
+  confirmedAt: string | null;
   createdAt: string;
 };
 
@@ -26,6 +29,7 @@ type FileOption = { id: string; name: string };
 const statusLabels: Record<string, string> = {
   todo: "К выполнению",
   in_progress: "В работе",
+  review: "На проверке",
   done: "Выполнено",
 };
 const priorityLabels: Record<string, string> = {
@@ -39,7 +43,6 @@ export default function TasksPage() {
   const projectId = searchParams.get("projectId");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"none" | "new" | "edit">("none");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,17 +57,22 @@ export default function TasksPage() {
     documentId: "",
   });
   const [projectFiles, setProjectFiles] = useState<FileOption[]>([]);
+  const [projectMembers, setProjectMembers] = useState<{ id: string; userId: string; user: User }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   async function load() {
     const url = projectId ? `/api/tasks?projectId=${encodeURIComponent(projectId)}` : "/api/tasks";
-    const [tRes, uRes, pRes] = await Promise.all([
+    const [tRes, pRes, meRes] = await Promise.all([
       fetch(url),
-      fetch("/api/users"),
       fetch("/api/projects"),
+      fetch("/api/auth/me"),
     ]);
     if (tRes.ok) setTasks(await tRes.json());
-    if (uRes.ok) setUsers(await uRes.json());
     if (pRes.ok) setProjects(await pRes.json());
+    if (meRes.ok) {
+      const me = await meRes.json();
+      setCurrentUserId(me?.user?.id ?? null);
+    }
     setLoading(false);
   }
 
@@ -75,11 +83,16 @@ export default function TasksPage() {
 
   useEffect(() => {
     if ((modal === "new" || modal === "edit") && form.projectId) {
-      fetch(`/api/files?projectId=${encodeURIComponent(form.projectId)}`)
-        .then((r) => (r.ok ? r.json() : []))
-        .then((list: { id: string; name: string }[]) => setProjectFiles(list));
+      Promise.all([
+        fetch(`/api/files?projectId=${encodeURIComponent(form.projectId)}`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/api/projects/${form.projectId}/members`).then((r) => (r.ok ? r.json() : [])),
+      ]).then(([files, members]) => {
+        setProjectFiles(files);
+        setProjectMembers(members);
+      });
     } else {
       setProjectFiles([]);
+      setProjectMembers([]);
     }
   }, [modal, form.projectId]);
 
@@ -172,80 +185,147 @@ export default function TasksPage() {
   const statusColors: Record<string, string> = {
     todo: "border-l-[var(--foreground-muted)]",
     in_progress: "border-l-[var(--accent)]",
+    review: "border-l-[var(--warning)]",
     done: "border-l-[var(--success)]",
   };
 
+  async function acceptTask(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}/accept`, { method: "POST" });
+    if (res.ok) load();
+    else {
+      const d = await res.json();
+      alert(d.error || "Ошибка");
+    }
+  }
+  async function confirmTask(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}/confirm`, { method: "POST" });
+    if (res.ok) load();
+    else {
+      const d = await res.json();
+      alert(d.error || "Ошибка");
+    }
+  }
+  async function setStatusReview(taskId: string) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "review" }),
+    });
+    if (res.ok) load();
+    else {
+      const d = await res.json();
+      alert(d.error || "Ошибка");
+    }
+  }
+
+  const priorityStyles: Record<string, string> = {
+    low: "bg-[var(--foreground-muted)]/20 text-[var(--foreground-muted)]",
+    medium: "bg-[var(--accent)]/15 text-[var(--accent)]",
+    high: "bg-[var(--danger)]/15 text-[var(--danger)]",
+  };
+
   return (
-    <div className="p-6 lg:p-10 max-w-6xl">
-      <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="min-h-full p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
+      <header className="mb-8 sm:mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-[var(--foreground)] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[var(--foreground)] tracking-tight">
             {currentProject ? currentProject.name : "Задачи"}
           </h1>
-          <p className="text-[var(--foreground-muted)] mt-1">
+          <p className="text-[var(--foreground-muted)] mt-1.5 text-sm sm:text-base">
             {currentProject ? "Задачи проекта" : "Выберите проект в меню слева"}
           </p>
         </div>
         <button
           onClick={openNew}
           disabled={!projectId && projects.length === 0}
-          className="rounded-[var(--radius)] bg-[var(--accent)] text-[var(--background)] font-semibold px-5 py-2.5 hover:bg-[var(--accent-hover)] disabled:opacity-50 transition shrink-0"
+          className="rounded-xl bg-[var(--accent)] text-[var(--background)] font-semibold px-6 py-3 hover:bg-[var(--accent-hover)] disabled:opacity-50 transition shadow-lg shadow-[var(--accent)]/20 shrink-0"
         >
           + Новая задача
         </button>
       </header>
 
       {!projectId && projects.length > 0 && (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-8 text-center text-[var(--foreground-muted)] mb-8">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 sm:p-10 text-center text-[var(--foreground-muted)]">
           Выберите проект в боковом меню, чтобы просматривать и создавать задачи.
         </div>
       )}
 
       {loading ? (
-        <p className="text-[var(--foreground-muted)]">Загрузка…</p>
+        <div className="flex items-center justify-center py-20">
+          <div className="w-10 h-10 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+        </div>
       ) : !projectId ? null : (
-        <div className="grid gap-5 lg:gap-6 md:grid-cols-3">
-          {(["todo", "in_progress", "done"] as const).map((status) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+          {(["todo", "in_progress", "review", "done"] as const).map((status) => (
             <div
               key={status}
-              className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-4 min-w-0"
+              className="rounded-2xl border border-[var(--border)] bg-[var(--card)]/80 backdrop-blur p-4 sm:p-5 min-h-[320px] flex flex-col shadow-sm"
             >
-              <h2 className="font-semibold text-[var(--foreground)] mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-[var(--foreground)] mb-4 flex items-center justify-between pb-3 border-b border-[var(--border)]">
                 <span>{statusLabels[status]}</span>
-                <span className="text-sm font-normal text-[var(--foreground-muted)]">{byStatus(status).length}</span>
+                <span className="text-sm font-medium text-[var(--foreground-muted)] bg-[var(--background-elevated)] px-2.5 py-1 rounded-lg">
+                  {byStatus(status).length}
+                </span>
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-3 flex-1 overflow-y-auto min-h-0">
                 {byStatus(status).map((task) => (
                   <div
                     key={task.id}
-                    className={`rounded-[var(--radius)] border border-[var(--border)] border-l-4 bg-[var(--background-elevated)] p-4 hover:border-[var(--border-focus)] transition ${statusColors[task.status]}`}
+                    className={`rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-4 transition-all duration-200 hover:border-[var(--border-focus)] hover:shadow-md ${statusColors[task.status]}`}
                   >
-                    <p className="font-medium text-[var(--foreground)]">{task.title}</p>
+                    <p className="font-semibold text-[var(--foreground)] leading-snug">{task.title}</p>
                     {task.description && (
-                      <p className="text-sm text-[var(--foreground-muted)] mt-1 line-clamp-2">{task.description}</p>
+                      <p className="text-sm text-[var(--foreground-muted)] mt-2 line-clamp-2">{task.description}</p>
                     )}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--foreground-muted)]">
-                      <span>{priorityLabels[task.priority]}</span>
-                      <span>·</span>
-                      <span>{task.assignee?.name || "Не назначен"}</span>
-                      <span>·</span>
+                    <span className={`inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-md ${priorityStyles[task.priority]}`}>
+                      {priorityLabels[task.priority]}
+                    </span>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--foreground-muted)]">
+                      <span className="flex items-center gap-1">
+                        <span className="w-5 h-5 rounded-full bg-[var(--border)] flex items-center justify-center text-[10px] font-semibold text-[var(--foreground)]">
+                          {(task.assignee?.name || "?")[0]}
+                        </span>
+                        {task.assignee?.name || "Не назначен"}
+                      </span>
+                      {task.assignee && !task.acceptedAt && (
+                        <span className="text-[var(--warning)]">Ожидает принятия</span>
+                      )}
                       <span>{formatDate(task.dueDate)}</span>
                     </div>
-                    {task.document && (
-                      <div className="mt-2">
-                        <a href={task.document.path} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[var(--accent)] hover:text-[var(--accent-hover)]">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                          {task.document.name}
-                        </a>
-                      </div>
+                    {task.status === "done" && task.confirmedBy && (
+                      <p className="text-xs text-[var(--foreground-muted)] mt-2 pt-2 border-t border-[var(--border)]">
+                        Подтвердил: {task.confirmedBy.name}
+                        {task.confirmedAt && ` · ${formatDate(task.confirmedAt)}`}
+                      </p>
                     )}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button onClick={() => openEdit(task)} className="text-[var(--accent)] text-sm font-medium hover:text-[var(--accent-hover)]">
+                    {task.document && (
+                      <a href={task.document.path} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:text-[var(--accent-hover)]">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        {task.document.name}
+                      </a>
+                    )}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {task.assignee?.id === currentUserId && !task.acceptedAt && (
+                        <button onClick={() => acceptTask(task.id)} className="rounded-lg bg-[var(--accent)] text-[var(--background)] text-xs font-medium px-3 py-2 hover:bg-[var(--accent-hover)]">
+                          Принять
+                        </button>
+                      )}
+                      {task.assignee?.id === currentUserId && task.status === "in_progress" && (
+                        <button onClick={() => setStatusReview(task.id)} className="rounded-lg bg-[var(--warning)]/90 text-white text-xs font-medium px-3 py-2 hover:opacity-90">
+                          На проверку
+                        </button>
+                      )}
+                      {task.project?.managerId === currentUserId && task.status === "review" && (
+                        <button onClick={() => confirmTask(task.id)} className="rounded-lg bg-[var(--success)] text-white text-xs font-medium px-3 py-2 hover:opacity-90">
+                          Подтвердить
+                        </button>
+                      )}
+                      <button onClick={() => openEdit(task)} className="rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] text-xs font-medium px-3 py-2 hover:bg-[var(--background-elevated)] hover:text-[var(--foreground)]">
                         Изменить
                       </button>
-                      <button onClick={() => remove(task.id)} className="text-[var(--danger)] text-sm font-medium hover:opacity-80">
+                      <button onClick={() => remove(task.id)} className="rounded-lg text-[var(--danger)] text-xs font-medium px-3 py-2 hover:bg-[var(--danger)]/10">
                         Удалить
                       </button>
                     </div>
@@ -258,18 +338,23 @@ export default function TasksPage() {
       )}
 
       {modal !== "none" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setModal("none")}>
-          <div className="w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-lg)] my-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-[var(--foreground)] mb-5">
-              {modal === "new" ? "Новая задача" : "Редактировать задачу"}
-            </h3>
-            <form onSubmit={save} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto" onClick={() => setModal("none")}>
+          <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl my-0 sm:my-4 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 sm:p-8 border-b border-[var(--border)] shrink-0">
+              <h3 className="text-xl font-bold text-[var(--foreground)]">
+                {modal === "new" ? "Новая задача" : "Редактировать задачу"}
+              </h3>
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                {modal === "new" ? "Заполните поля и сохраните" : "Внесите изменения"}
+              </p>
+            </div>
+            <form onSubmit={save} className="p-6 sm:p-8 space-y-5 overflow-y-auto flex-1 min-h-0">
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Проект</label>
                 <select
                   value={form.projectId}
                   onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
                   required
                 >
                   <option value="">Выберите проект</option>
@@ -283,7 +368,8 @@ export default function TasksPage() {
                 <input
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                  placeholder="Краткое название задачи"
                   required
                 />
               </div>
@@ -292,8 +378,9 @@ export default function TasksPage() {
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 resize-none"
                   rows={3}
+                  placeholder="Подробности (необязательно)"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -302,19 +389,20 @@ export default function TasksPage() {
                   <select
                     value={form.status}
                     onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                    className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                   >
                     {Object.entries(statusLabels).map(([v, l]) => (
                       <option key={v} value={v}>{l}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1.5">«Выполнено» — только кнопкой «Подтвердить» у менеджера</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Приоритет</label>
                   <select
                     value={form.priority}
                     onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                    className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                   >
                     {Object.entries(priorityLabels).map(([v, l]) => (
                       <option key={v} value={v}>{l}</option>
@@ -328,7 +416,7 @@ export default function TasksPage() {
                   type="datetime-local"
                   value={form.dueDate}
                   onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                 />
               </div>
               <div>
@@ -336,33 +424,33 @@ export default function TasksPage() {
                 <select
                   value={form.assigneeId}
                   onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                 >
                   <option value="">Не назначен</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
+                  {projectMembers.map((m) => (
+                    <option key={m.userId} value={m.userId}>{m.user.name}</option>
                   ))}
                 </select>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1.5">Исполнитель должен принять задачу</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Документ</label>
                 <select
                   value={form.documentId}
                   onChange={(e) => setForm((f) => ({ ...f, documentId: e.target.value }))}
-                  className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                 >
                   <option value="">Без документа</option>
                   {projectFiles.map((f) => (
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-[var(--foreground-muted)] mt-1">Файлы из раздела «Файлы» проекта</p>
               </div>
               <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
-                <button type="button" onClick={() => setModal("none")} className="flex-1 rounded-[var(--radius)] border border-[var(--border)] py-2.5 text-[var(--foreground)] hover:bg-[var(--background-elevated)]">
+                <button type="button" onClick={() => setModal("none")} className="flex-1 rounded-xl border border-[var(--border)] py-3.5 text-[var(--foreground)] font-medium hover:bg-[var(--background-elevated)]">
                   Отмена
                 </button>
-                <button type="submit" className="flex-1 rounded-[var(--radius)] bg-[var(--accent)] text-[var(--background)] py-2.5 font-semibold hover:bg-[var(--accent-hover)]">
+                <button type="submit" className="flex-1 rounded-xl bg-[var(--accent)] text-[var(--background)] py-3.5 font-semibold hover:bg-[var(--accent-hover)] shadow-lg shadow-[var(--accent)]/20">
                   Сохранить
                 </button>
               </div>

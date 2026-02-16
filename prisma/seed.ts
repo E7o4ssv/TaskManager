@@ -11,23 +11,23 @@ async function main() {
   const users = await Promise.all([
     prisma.user.upsert({
       where: { email: "anna@company.com" },
-      update: {},
-      create: { email: "anna@company.com", password: hash, name: "Анна Иванова", role: "admin" },
+      update: { login: "anna" },
+      create: { email: "anna@company.com", login: "anna", password: hash, name: "Анна Иванова", role: "admin" },
     }),
     prisma.user.upsert({
       where: { email: "boris@company.com" },
-      update: {},
-      create: { email: "boris@company.com", password: hash, name: "Борис Петров", role: "member" },
+      update: { login: "boris" },
+      create: { email: "boris@company.com", login: "boris", password: hash, name: "Борис Петров", role: "member" },
     }),
     prisma.user.upsert({
       where: { email: "maria@company.com" },
-      update: {},
-      create: { email: "maria@company.com", password: hash, name: "Мария Сидорова", role: "member" },
+      update: { login: "maria" },
+      create: { email: "maria@company.com", login: "maria", password: hash, name: "Мария Сидорова", role: "member" },
     }),
     prisma.user.upsert({
       where: { email: "dmitry@company.com" },
-      update: {},
-      create: { email: "dmitry@company.com", password: hash, name: "Дмитрий Козлов", role: "member" },
+      update: { login: "dmitry" },
+      create: { email: "dmitry@company.com", login: "dmitry", password: hash, name: "Дмитрий Козлов", role: "member" },
     }),
   ]);
 
@@ -115,6 +115,7 @@ async function main() {
         data: {
           name: projectNames[i],
           description: projectDescs[i],
+          managerId: users[0].id,
           members: { create: { userId: users[0].id } },
         },
       });

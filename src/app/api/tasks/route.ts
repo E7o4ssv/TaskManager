@@ -11,19 +11,17 @@ export async function GET(req: NextRequest) {
     const allowed = await canAccessProject(user, projectId);
     if (!allowed) return Response.json({ error: "No access to this project" }, { status: 403 });
   }
-  const where: { projectId?: string | null; project?: { members?: { some: { userId: string } } } } = projectId
-    ? { projectId }
-    : user.role === "admin"
-      ? {}
-      : { OR: [{ projectId: null }, { project: { members: { some: { userId: user.id } } } }] };
   const tasks = await prisma.task.findMany({
-    where,
+    where: projectId
+      ? { projectId }
+      : { OR: [{ projectId: null }, { project: { members: { some: { userId: user.id } } } }] },
     orderBy: { createdAt: "desc" },
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, managerId: true } },
       document: { select: { id: true, name: true, path: true } },
       assignee: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
+      confirmedBy: { select: { id: true, name: true } },
     },
   });
   return Response.json(tasks);

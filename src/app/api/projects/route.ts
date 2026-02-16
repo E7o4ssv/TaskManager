@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const user = await requireAuth();
-  const isManager = user.role === "admin";
   const projects = await prisma.project.findMany({
-    where: isManager ? undefined : { members: { some: { userId: user.id } } },
+    where: { members: { some: { userId: user.id } } },
     orderBy: { name: "asc" },
-    include: { _count: { select: { tasks: true } } },
+    include: {
+      _count: { select: { tasks: true } },
+      manager: { select: { id: true, name: true } },
+    },
   });
   return Response.json(projects);
 }
@@ -24,8 +26,20 @@ export async function POST(req: NextRequest) {
     data: {
       name: name.trim(),
       description: description?.trim() || null,
+      managerId: user.id,
       members: { create: { userId: user.id } },
     },
   });
-  return Response.json(project);
+  const projectChat = await prisma.conversation.create({
+    data: {
+      type: "project",
+      name: `Чат: ${project.name}`,
+      projectId: project.id,
+      participants: { create: { userId: user.id } },
+    },
+  });
+  return Response.json({
+    ...project,
+    projectChatId: projectChat.id,
+  });
 }

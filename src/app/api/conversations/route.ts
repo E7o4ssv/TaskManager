@@ -1,10 +1,18 @@
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateGroupConversation } from "@/lib/conversations";
 
 export async function GET() {
   const user = await requireAuth();
-  const group = await getOrCreateGroupConversation();
+  const projectChats = await prisma.conversation.findMany({
+    where: {
+      type: "project",
+      projectId: { not: null },
+      project: { members: { some: { userId: user.id } } },
+    },
+    include: {
+      project: { select: { id: true, name: true } },
+    },
+  });
   const directConvs = await prisma.conversation.findMany({
     where: {
       type: "direct",
@@ -17,12 +25,14 @@ export async function GET() {
     },
   });
   const list = [
-    {
-      id: group.id,
-      type: "group" as const,
-      name: group.name,
-      updatedAt: group.createdAt,
-    },
+    ...projectChats.map((c) => ({
+      id: c.id,
+      type: "project" as const,
+      name: c.name ?? `Чат: ${c.project?.name ?? ""}`,
+      projectId: c.projectId ?? undefined,
+      projectName: c.project?.name,
+      updatedAt: c.createdAt,
+    })),
     ...directConvs.map((c) => {
       const other = c.participants.find((p) => p.userId !== user.id)?.user;
       return {

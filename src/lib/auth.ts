@@ -8,7 +8,7 @@ export async function getCurrentUser() {
   if (!userId) return null;
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, login: true, email: true, name: true, role: true },
   });
 }
 
@@ -18,7 +18,7 @@ export async function getCurrentUserFromRequest(req: NextRequest) {
   if (!userId) return null;
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, login: true, email: true, name: true, role: true },
   });
 }
 

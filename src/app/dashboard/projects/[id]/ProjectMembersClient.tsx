@@ -3,51 +3,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type User = { id: string; name: string; email: string };
+type User = { id: string; name: string; login?: string | null; email?: string | null };
 type Member = { id: string; userId: string; user: User };
 
 export default function ProjectMembersClient({
   projectId,
   projectName,
   members: initialMembers,
-  allUsers,
+  isManager,
+  currentUserId,
 }: {
   projectId: string;
   projectName: string;
   members: Member[];
-  allUsers: User[];
+  isManager: boolean;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState(initialMembers);
-  const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
-  const memberIds = new Set(members.map((m) => m.userId));
-  const availableUsers = allUsers.filter((u) => !memberIds.has(u.id));
-
-  async function addMember() {
-    if (!selectedUserId || adding) return;
-    setAdding(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: selectedUserId }),
-      });
-      if (res.ok) {
-        const newMember = await res.json();
-        setMembers((prev) => [...prev, { id: newMember.id, userId: newMember.userId, user: newMember.user }]);
-        setSelectedUserId("");
-        router.refresh();
-      }
-    } finally {
-      setAdding(false);
-    }
-  }
+  const [transferringTo, setTransferringTo] = useState<string | null>(null);
 
   async function removeMember(userId: string) {
     if (removing) return;
@@ -91,8 +69,28 @@ export default function ProjectMembersClient({
     setTimeout(() => setLinkCopied(false), 2000);
   }
 
+  async function transferManager(userId: string) {
+    if (transferringTo) return;
+    setTransferringTo(userId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ managerId: userId }),
+      });
+      if (res.ok) router.refresh();
+      else {
+        const d = await res.json();
+        alert(d.error || "Ошибка");
+      }
+    } finally {
+      setTransferringTo(null);
+    }
+  }
+
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-6">
+      {isManager && (
       <div className="mb-6 pb-6 border-b border-[var(--border)]">
         <h3 className="font-semibold text-[var(--foreground)] mb-2">Пригласить по ссылке</h3>
         <p className="text-sm text-[var(--foreground-muted)] mb-3">
@@ -131,7 +129,11 @@ export default function ProjectMembersClient({
             </button>
           </div>
         )}
+        <p className="text-[var(--foreground-muted)] text-sm mt-3">
+          Участников добавляйте только по ссылке — в системе могут работать другие команды.
+        </p>
       </div>
+      )}
 
       <h3 className="font-semibold text-[var(--foreground)] mb-3">Участники</h3>
       <ul className="space-y-3 mb-6">
@@ -139,48 +141,33 @@ export default function ProjectMembersClient({
           <li key={m.id} className="flex items-center justify-between gap-4 py-2 border-b border-[var(--border)] last:border-0">
             <div>
               <span className="font-medium text-[var(--foreground)]">{m.user.name}</span>
-              <span className="text-[var(--foreground-muted)] text-sm ml-2">{m.user.email}</span>
+              <span className="text-[var(--foreground-muted)] text-sm ml-2">{m.user.login || m.user.email || ""}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => removeMember(m.userId)}
-              disabled={removing === m.userId}
-              className="text-[var(--danger)] text-sm font-medium hover:opacity-80 disabled:opacity-50"
-            >
-              {removing === m.userId ? "…" : "Удалить"}
-            </button>
+            <div className="flex items-center gap-2">
+              {isManager && m.userId !== currentUserId && (
+                <button
+                  type="button"
+                  onClick={() => transferManager(m.userId)}
+                  disabled={!!transferringTo}
+                  className="text-[var(--accent)] text-sm font-medium hover:underline disabled:opacity-50"
+                >
+                  {transferringTo === m.userId ? "…" : "Сделать менеджером"}
+                </button>
+              )}
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => removeMember(m.userId)}
+                  disabled={removing === m.userId}
+                  className="text-[var(--danger)] text-sm font-medium hover:opacity-80 disabled:opacity-50"
+                >
+                  {removing === m.userId ? "…" : "Удалить"}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
-
-      {availableUsers.length > 0 && (
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[200px] flex-1">
-            <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1">Добавить участника</label>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-2.5 text-[var(--foreground)]"
-            >
-              <option value="">Выберите пользователя</option>
-              {availableUsers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={addMember}
-            disabled={!selectedUserId || adding}
-            className="rounded-[var(--radius)] bg-[var(--accent)] text-[var(--background)] font-semibold px-4 py-2.5 hover:bg-[var(--accent-hover)] disabled:opacity-50"
-          >
-            {adding ? "…" : "Добавить"}
-          </button>
-        </div>
-      )}
-      {availableUsers.length === 0 && members.length > 0 && (
-        <p className="text-[var(--foreground-muted)] text-sm">Все пользователи уже добавлены в проект.</p>
-      )}
     </div>
   );
 }

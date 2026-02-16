@@ -4,21 +4,29 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name } = await req.json();
-    if (!email || !password || !name) {
+    const { login, password, passwordConfirm, name } = await req.json();
+    if (!login?.trim() || !password || !name?.trim()) {
       return NextResponse.json(
-        { error: "Email, password and name are required" },
+        { error: "Логин, пароль и имя обязательны" },
         { status: 400 }
       );
     }
-    const existing = await prisma.user.findUnique({ where: { email } });
+    if (password !== passwordConfirm) {
+      return NextResponse.json({ error: "Пароли не совпадают" }, { status: 400 });
+    }
+    if (password.length < 6) {
+      return NextResponse.json({ error: "Пароль не менее 6 символов" }, { status: 400 });
+    }
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ login: login.trim() }, { email: login.trim() }] },
+    });
     if (existing) {
-      return NextResponse.json({ error: "User already exists" }, { status: 400 });
+      return NextResponse.json({ error: "Такой логин уже занят" }, { status: 400 });
     }
     const hash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password: hash, name, role: "member" },
-      select: { id: true, email: true, name: true, role: true },
+      data: { login: login.trim(), password: hash, name: name.trim(), role: "member" },
+      select: { id: true, login: true, name: true, role: true },
     });
     const res = NextResponse.json({ user });
     res.cookies.set("userId", user.id, { httpOnly: true, path: "/", maxAge: 60 * 60 * 24 * 7 });

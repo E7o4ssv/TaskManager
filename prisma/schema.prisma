@@ -9,7 +9,8 @@ datasource db {
 
 model User {
   id         String    @id @default(cuid())
-  email      String    @unique
+  login      String?   @unique  // основной вход; при регистрации без email
+  email      String?   @unique  // опционально
   password   String
   name       String
   role       String    @default("member") // admin | member (права доступа)
@@ -22,6 +23,8 @@ model User {
   createdTasks Task[]  @relation("Creator")
   participants Participant[]
   projectMemberships ProjectMember[]
+  managedProjects    Project[]  @relation("ProjectManager")
+  confirmedTasks     Task[]     @relation("TaskConfirmedBy")
 }
 
 model Position {
@@ -32,8 +35,10 @@ model Position {
 
 model Conversation {
   id        String   @id @default(cuid())
-  type      String   // "group" | "direct"
-  name      String?  // для группового: "Общий чат"
+  type      String   // "group" | "direct" | "project"
+  name      String?
+  projectId String?  @unique
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   messages  Message[]
   participants Participant[]
@@ -77,11 +82,14 @@ model Project {
   id          String   @id @default(cuid())
   name        String
   description String?
+  managerId   String?  // кто создал или кому передали роль; null = назначить при первом доступе
+  manager     User?    @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   tasks       Task[]
   files       File[]
   members     ProjectMember[]
   invitations Invitation[]
+  projectChat Conversation? // один чат на проект
 }
 
 model Invitation {
@@ -105,20 +113,24 @@ model ProjectMember {
 }
 
 model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  status      String   @default("todo") // todo | in_progress | done
-  priority    String   @default("medium") // low | medium | high
-  dueDate     DateTime?
-  projectId   String?
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  documentId  String?
-  document    File?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  assigneeId  String?
-  assignee    User?    @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  creatorId   String
-  creator     User     @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  status        String    @default("todo") // todo | in_progress | review | done
+  priority      String    @default("medium")
+  dueDate       DateTime?
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  documentId    String?
+  document      File?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  assigneeId    String?
+  assignee      User?     @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  acceptedAt    DateTime? // когда исполнитель принял делегированную задачу
+  creatorId     String
+  creator       User      @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
+  confirmedById String?
+  confirmedBy   User?     @relation("TaskConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
