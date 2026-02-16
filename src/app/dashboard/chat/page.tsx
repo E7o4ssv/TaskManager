@@ -85,7 +85,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!showNewDm) return;
-    fetch("/api/users")
+    fetch("/api/users/for-dm")
       .then((r) => r.ok ? r.json() : [])
       .then(setUsers);
   }, [showNewDm]);
@@ -137,13 +137,16 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-0px)]">
-      {/* Список чатов: на мобильных скрыт при выборе чата */}
-      <aside
-        className={`absolute lg:relative inset-0 lg:inset-auto z-30 w-72 lg:w-72 border-r border-[var(--border)] bg-[var(--card)] flex flex-col ${
-          mobileShowList ? "flex" : "hidden lg:flex"
-        }`}
-      >
+    <div
+      className="flex min-h-0 overflow-hidden rounded-[var(--radius)] lg:rounded-none h-[calc(100dvh-7rem)] lg:h-[calc(100vh-0px)]"
+    >
+      <div className="flex flex-1 min-h-0 min-w-0 w-full h-full" style={{ height: "inherit" }}>
+        {/* Список чатов: на мобильных скрыт при выборе чата */}
+        <aside
+          className={`absolute lg:relative inset-0 lg:inset-auto z-30 w-full sm:w-72 lg:w-72 border-r border-[var(--border)] bg-[var(--card)] flex flex-col shrink-0 ${
+            mobileShowList ? "flex" : "hidden lg:flex"
+          }`}
+        >
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
           <h2 className="font-semibold text-[var(--foreground)]">Чаты</h2>
           <button
@@ -154,7 +157,7 @@ export default function ChatPage() {
             + ЛС
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           {loadingList ? (
             <p className="p-4 text-sm text-[var(--foreground-muted)]">Загрузка…</p>
           ) : (
@@ -189,7 +192,7 @@ export default function ChatPage() {
       </aside>
 
       {/* Область сообщений */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[var(--background)]">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-[var(--background)]">
         {selected ? (
           <>
             <header className="border-b border-[var(--border)] bg-[var(--card)] px-4 lg:px-6 py-4 shrink-0 flex items-center gap-3">
@@ -210,7 +213,7 @@ export default function ChatPage() {
                 </p>
               </div>
             </header>
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 scrollbar-thin">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 lg:p-6 scrollbar-thin">
               {loadingMessages ? (
                 <p className="text-[var(--foreground-muted)]">Загрузка…</p>
               ) : messages.length === 0 ? (
@@ -233,7 +236,7 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-            <form onSubmit={send} className="border-t border-[var(--border)] bg-[var(--card)] p-4 shrink-0">
+            <form onSubmit={send} className="border-t border-[var(--border)] bg-[var(--card)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shrink-0">
               <div className="flex gap-3 max-w-2xl flex-col sm:flex-row">
                 <input
                   value={input}
@@ -264,6 +267,7 @@ export default function ChatPage() {
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {/* Модальное окно: выбор пользователя для ЛС */}

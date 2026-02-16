@@ -15,6 +15,7 @@ export default function InvitePage() {
   const [user, setUser] = useState<{ id: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [needAuth, setNeedAuth] = useState(false);
   const [joining, setJoining] = useState(false);
 
   const nextUrl = `/invite/${token}`;
@@ -32,7 +33,13 @@ export default function InvitePage() {
         if (cancelled) return;
         if (!checkRes.ok) {
           const data = await checkRes.json().catch(() => ({}));
-          setError(data.error || "Приглашение недействительно");
+          const isUnauthorized = checkRes.status === 401 || data.error === "Unauthorized";
+          setNeedAuth(!!isUnauthorized);
+          setError(
+            isUnauthorized
+              ? "Войдите или зарегистрируйтесь, чтобы присоединиться к проекту."
+              : (data.error || "Приглашение недействительно")
+          );
           setLoading(false);
           return;
         }
@@ -89,10 +96,27 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
         <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-8 max-w-md text-center">
-          <p className="text-[var(--danger)] font-medium">{error}</p>
-          <Link href="/login" className="mt-6 inline-block text-[var(--accent)] font-medium hover:underline">
-            Перейти на главную
-          </Link>
+          <p className={needAuth ? "text-[var(--foreground-muted)]" : "text-[var(--danger)] font-medium"}>{error}</p>
+          {needAuth ? (
+            <div className="mt-6 flex flex-col gap-2">
+              <Link
+                href={loginUrl}
+                className="w-full rounded-[var(--radius)] bg-[var(--accent)] text-[var(--background)] font-semibold py-3 text-center hover:bg-[var(--accent-hover)] transition"
+              >
+                Войти
+              </Link>
+              <Link
+                href={registerUrl}
+                className="w-full rounded-[var(--radius)] border border-[var(--border)] py-3 text-center font-medium text-[var(--foreground)] hover:bg-[var(--background-elevated)] transition"
+              >
+                Регистрация
+              </Link>
+            </div>
+          ) : (
+            <Link href="/login" className="mt-6 inline-block text-[var(--accent)] font-medium hover:underline">
+              Перейти на главную
+            </Link>
+          )}
         </div>
       </div>
     );
