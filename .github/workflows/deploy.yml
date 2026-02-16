@@ -1,5 +1,5 @@
-# Деплой на сервер при пуше в main
-# Требуемые секреты в настройках репозитория: SERVER_HOST, SERVER_USER, SSH_PRIVATE_KEY
+# Деплой FerretTask на сервер при пуше в main
+# Секреты: SERVER_HOST, SERVER_USER, SSH_PRIVATE_KEY (приватный ключ для входа на сервер)
 
 name: Deploy to server
 
@@ -20,12 +20,12 @@ jobs:
           script_stop: true
           script: |
             set -e
-            cd /var/www/taskmanager
+            cd /var/www/ferrettask
             git fetch origin main
             git reset --hard origin/main
             npm ci
             npx prisma generate
             npx prisma db push
             npm run build
-            pm2 restart taskmanager || (pm2 start npm --name taskmanager -- start && pm2 save)
+            pm2 restart ferrettask || (pm2 start npm --name ferrettask -- start && pm2 save)
             echo "Deploy done."
