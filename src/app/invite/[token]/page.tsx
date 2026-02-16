@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -102,9 +103,7 @@ export default function InvitePage() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--accent-muted),transparent)] pointer-events-none" />
       <div className="w-full max-w-[400px] relative rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-8 shadow-[var(--shadow-lg)]">
         <div className="text-center mb-6">
-          <div className="inline-flex h-12 w-12 rounded-xl bg-[var(--accent)] items-center justify-center text-white font-bold text-xl mb-4">
-            D
-          </div>
+          <Image src="/logo.png" alt="FerretTask" width={64} height={64} className="mx-auto rounded-xl mb-4 object-contain" />
           <h1 className="text-xl font-bold text-[var(--foreground)]">Приглашение в проект</h1>
           <p className="text-[var(--foreground-muted)] mt-1">
             Вас приглашают в проект <strong className="text-[var(--foreground)]">{invite?.project.name}</strong>

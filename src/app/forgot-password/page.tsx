@@ -3,34 +3,24 @@
 import Image from "next/image";
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/dashboard";
+function ForgotPasswordForm() {
   const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
+    setMessage("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login: login.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Ошибка входа");
-        return;
-      }
-      router.push(next.startsWith("/") ? next : "/dashboard");
-      router.refresh();
+      setMessage(data.message || data.error || "Готово.");
     } finally {
       setLoading(false);
     }
@@ -43,15 +33,12 @@ function LoginForm() {
         <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-8 shadow-[var(--shadow-lg)]">
           <div className="text-center mb-8">
             <Image src="/logo.png" alt="FerretTask" width={64} height={64} className="mx-auto rounded-xl mb-4 object-contain" />
-            <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">FerretTask</h1>
-            <p className="text-[var(--foreground-muted)] text-sm mt-1">Вход в систему</p>
+            <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">Восстановление пароля</h1>
+            <p className="text-[var(--foreground-muted)] text-sm mt-1">
+              Введите логин — новый пароль придёт в личные сообщения менеджеру вашего проекта
+            </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="rounded-[var(--radius)] bg-[var(--danger)]/10 border border-[var(--danger)]/20 px-4 py-3 text-sm text-[var(--danger)]">
-                {error}
-              </div>
-            )}
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Логин</label>
               <input
@@ -64,34 +51,22 @@ function LoginForm() {
                 required
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Пароль</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-                required
-              />
-              <p className="mt-1.5 text-right">
-                <Link href="/forgot-password" className="text-sm text-[var(--accent)] hover:text-[var(--accent-hover)]">
-                  Забыли пароль?
-                </Link>
-              </p>
-            </div>
+            {message && (
+              <div className="rounded-[var(--radius)] bg-[var(--accent-muted)]/50 border border-[var(--accent)]/30 px-4 py-3 text-sm text-[var(--foreground)]">
+                {message}
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}
               className="w-full rounded-[var(--radius)] bg-[var(--accent)] text-[var(--background)] font-semibold py-3 hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {loading ? "Вход…" : "Войти"}
+              {loading ? "Отправка…" : "Отправить запрос"}
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-[var(--foreground-muted)]">
-            Нет аккаунта?{" "}
-            <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="text-[var(--accent)] font-medium hover:text-[var(--accent-hover)]">
-              Регистрация
+            <Link href="/login" className="text-[var(--accent)] font-medium hover:text-[var(--accent-hover)]">
+              ← Вернуться к входу
             </Link>
           </p>
         </div>
@@ -100,10 +75,10 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--background)]"><p className="text-[var(--foreground-muted)]">Загрузка…</p></div>}>
-      <LoginForm />
+      <ForgotPasswordForm />
     </Suspense>
   );
 }

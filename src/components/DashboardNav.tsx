@@ -1,10 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-type User = { id: string; name: string; email: string; role: string };
+type User = { id: string; name: string; login?: string | null; email?: string | null; role: string };
 type Project = { id: string; name: string; _count?: { tasks: number } };
 
 export default function DashboardNav({ user }: { user: User }) {
@@ -69,12 +70,10 @@ export default function DashboardNav({ user }: { user: User }) {
           className="flex items-center gap-3"
           onClick={() => setMobileOpen(false)}
         >
-          <span className="flex h-10 w-10 rounded-xl bg-[var(--accent)] items-center justify-center text-[var(--background)] font-bold text-lg shrink-0">
-            D
-          </span>
+          <Image src="/logo.png" alt="FerretTask" width={40} height={40} className="rounded-xl shrink-0 object-contain" />
           <div className="min-w-0">
-            <span className="font-bold text-[var(--foreground)] block truncate text-lg tracking-tight">DanyWhite</span>
-            <span className="text-xs text-[var(--foreground-muted)]">Менеджер компании</span>
+            <span className="font-bold text-[var(--foreground)] block truncate text-lg tracking-tight">FerretTask</span>
+            <span className="text-xs text-[var(--foreground-muted)]">Задачи и проекты</span>
           </div>
         </Link>
       </div>
@@ -145,18 +144,16 @@ export default function DashboardNav({ user }: { user: User }) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                     </Link>
-                    {user.role === "admin" && (
-                      <Link
-                        href={`/dashboard/projects/${p.id}`}
-                        onClick={() => setMobileOpen(false)}
-                        className="p-1.5 rounded-md shrink-0 text-[var(--foreground-muted)] hover:bg-[var(--background-elevated)] hover:text-[var(--foreground)]"
-                        title="Участники проекта"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      </Link>
-                    )}
+                    <Link
+                      href={`/dashboard/projects/${p.id}`}
+                      onClick={() => setMobileOpen(false)}
+                      className="p-1.5 rounded-md shrink-0 text-[var(--foreground-muted)] hover:bg-[var(--background-elevated)] hover:text-[var(--foreground)]"
+                      title="Участники проекта"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    </Link>
                   </div>
                 </li>
               );
@@ -179,7 +176,7 @@ export default function DashboardNav({ user }: { user: User }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-[var(--foreground)] truncate">{user.name}</p>
-            <p className="text-xs text-[var(--foreground-muted)] truncate">{user.email}</p>
+            <p className="text-xs text-[var(--foreground-muted)] truncate">{user.login || user.email || ""}</p>
           </div>
         </div>
         <button

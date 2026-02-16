@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DanyWhite — Менеджер компании",
+  title: "FerretTask — Управление задачами и проектами",
   description: "Внутреннее общение, обмен файлами и контроль рабочих процессов",
+  icons: { icon: "/logo.png", apple: "/logo.png" },
 };
 
 export default function RootLayout({

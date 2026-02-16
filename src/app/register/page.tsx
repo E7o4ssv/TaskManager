@@ -1,28 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/dashboard";
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (password !== passwordConfirm) {
+      setError("Пароли не совпадают");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, login, password, passwordConfirm }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -42,10 +48,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-[400px] relative">
         <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-8 shadow-[var(--shadow-lg)]">
           <div className="text-center mb-8">
-            <div className="inline-flex h-12 w-12 rounded-xl bg-[var(--accent)] items-center justify-center text-[var(--background)] font-bold text-xl mb-4">
-              D
-            </div>
-            <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">DanyWhite</h1>
+            <Image src="/logo.png" alt="FerretTask" width={64} height={64} className="mx-auto rounded-xl mb-4 object-contain" />
+            <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">FerretTask</h1>
             <p className="text-[var(--foreground-muted)] text-sm mt-1">Регистрация</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -66,13 +70,14 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Email</label>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Логин</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                autoComplete="username"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
                 className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-                placeholder="you@company.com"
+                placeholder="Придумайте логин"
                 required
               />
             </div>
@@ -80,11 +85,26 @@ export default function RegisterPage() {
               <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Пароль</label>
               <input
                 type="password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
                 required
                 minLength={6}
+                placeholder="Не менее 6 символов"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Подтверждение пароля</label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                required
+                minLength={6}
+                placeholder="Повторите пароль"
               />
             </div>
             <button
@@ -104,5 +124,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[var(--background)]"><p className="text-[var(--foreground-muted)]">Загрузка…</p></div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }
