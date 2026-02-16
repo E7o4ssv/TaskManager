@@ -28,6 +28,7 @@ export default function FilesPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isManager, setIsManager] = useState(false);
   const [pending, setPending] = useState<PendingFile[]>([]);
   const pendingRef = useRef<PendingFile[]>([]);
   useEffect(() => {
@@ -51,7 +52,13 @@ export default function FilesPage() {
       const res = await fetch(`/api/files?projectId=${encodeURIComponent(projectId)}`);
       if (res.ok) {
         const data = await res.json();
-        setFiles(Array.isArray(data) ? data : []);
+        if (data && typeof data === "object" && Array.isArray(data.files)) {
+          setFiles(data.files);
+          setIsManager(!!data.isManager);
+        } else {
+          setFiles(Array.isArray(data) ? data : []);
+          setIsManager(false);
+        }
       } else if (res.status === 403) {
         setFiles([]);
         setError("Нет доступа к этому проекту.");
@@ -159,6 +166,18 @@ export default function FilesPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  async function deleteFile(fileId: string) {
+    if (!confirm("Удалить этот файл?")) return;
+    setError(null);
+    const res = await fetch(`/api/files/${fileId}`, { method: "DELETE" });
+    if (res.ok) {
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setError(err?.error || "Не удалось удалить файл.");
+    }
   }
 
   return (
@@ -278,7 +297,7 @@ export default function FilesPage() {
                     <th className="p-4 font-medium">Размер</th>
                     <th className="p-4 font-medium hidden sm:table-cell">Кто загрузил</th>
                     <th className="p-4 font-medium hidden md:table-cell">Дата</th>
-                    <th className="p-4 font-medium w-28"></th>
+                    <th className="p-4 font-medium w-32"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,9 +308,18 @@ export default function FilesPage() {
                       <td className="p-4 text-[var(--foreground-muted)] text-sm hidden sm:table-cell">{f.user.name}</td>
                       <td className="p-4 text-[var(--foreground-muted)] text-sm hidden md:table-cell">{formatDate(f.createdAt)}</td>
                       <td className="p-4">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <a href={f.path} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] text-sm font-medium hover:text-[var(--accent-hover)]">Скачать</a>
                           <a href={`/api/files/${f.id}`} download={f.name} className="text-[var(--accent)] text-sm font-medium hover:text-[var(--accent-hover)]">Как файл</a>
+                          {isManager && (
+                            <button
+                              type="button"
+                              onClick={() => deleteFile(f.id)}
+                              className="text-[var(--danger)] text-sm font-medium hover:underline"
+                            >
+                              Удалить
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessProject } from "@/lib/project-access";
+import { canAccessProject, isProjectManager } from "@/lib/project-access";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
@@ -16,12 +16,15 @@ export async function GET(req: NextRequest) {
   if (!allowed) {
     return Response.json({ error: "No access to this project" }, { status: 403 });
   }
-  const files = await prisma.file.findMany({
-    where: { projectId },
-    orderBy: { createdAt: "desc" },
-    include: { user: { select: { id: true, name: true } }, project: { select: { id: true, name: true } } },
-  });
-  return Response.json(files);
+  const [files, manager] = await Promise.all([
+    prisma.file.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { id: true, name: true } }, project: { select: { id: true, name: true } } },
+    }),
+    isProjectManager(user.id, projectId),
+  ]);
+  return Response.json({ files, isManager: manager });
 }
 
 export async function POST(req: NextRequest) {
