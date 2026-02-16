@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessProject } from "@/lib/project-access";
+import { canAccessProject, isProjectManager } from "@/lib/project-access";
 
 export async function GET(req: NextRequest) {
   const user = await requireAuth();
@@ -11,10 +11,20 @@ export async function GET(req: NextRequest) {
     const allowed = await canAccessProject(user, projectId);
     if (!allowed) return Response.json({ error: "No access to this project" }, { status: 403 });
   }
-  const tasks = await prisma.task.findMany({
-    where: projectId
+  const managerOfProject = projectId ? await isProjectManager(user.id, projectId) : null;
+  const where = projectId
+    ? managerOfProject
       ? { projectId }
-      : { OR: [{ projectId: null }, { project: { members: { some: { userId: user.id } } } }] },
+      : { projectId, assigneeId: user.id }
+    : {
+        OR: [
+          { projectId: null },
+          { project: { members: { some: { userId: user.id } }, managerId: user.id } },
+          { project: { members: { some: { userId: user.id } } }, assigneeId: user.id },
+        ],
+      };
+  const tasks = await prisma.task.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: {
       project: { select: { id: true, name: true, managerId: true } },
