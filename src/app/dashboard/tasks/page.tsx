@@ -44,7 +44,8 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<"none" | "new" | "edit">("none");
+  const [modal, setModal] = useState<"none" | "new" | "edit" | "view">("none");
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
@@ -89,11 +90,12 @@ export default function TasksPage() {
   useEffect(() => {
     if ((modal === "new" || modal === "edit") && form.projectId) {
       Promise.all([
-        fetch(`/api/files?projectId=${encodeURIComponent(form.projectId)}`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/api/files?projectId=${encodeURIComponent(form.projectId)}`).then((r) => (r.ok ? r.json() : null)),
         fetch(`/api/projects/${form.projectId}/members`).then((r) => (r.ok ? r.json() : [])),
-      ]).then(([files, members]) => {
-        setProjectFiles(files);
-        setProjectMembers(members);
+      ]).then(([filesData, members]) => {
+        const filesList = Array.isArray(filesData) ? filesData : (filesData?.files ?? []);
+        setProjectFiles(filesList);
+        setProjectMembers(Array.isArray(members) ? members : []);
       });
     } else {
       setProjectFiles([]);
@@ -117,8 +119,13 @@ export default function TasksPage() {
     });
     setEditingId(null);
     setModal("new");
-    if (pid) fetch(`/api/files?projectId=${encodeURIComponent(pid)}`).then((r) => r.ok ? r.json() : []).then((list: { id: string; name: string }[]) => setProjectFiles(list));
-    else setProjectFiles([]);
+    if (pid) {
+      fetch(`/api/files?projectId=${encodeURIComponent(pid)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { files?: { id: string; name: string }[] } | { id: string; name: string }[] | null) => {
+          setProjectFiles(Array.isArray(data) ? data : (data?.files ?? []));
+        });
+    } else setProjectFiles([]);
   }
 
   function openEdit(task: Task) {
@@ -276,7 +283,8 @@ export default function TasksPage() {
                 {byStatus(status).map((task) => (
                   <div
                     key={task.id}
-                    className={`rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-4 transition-all duration-200 hover:border-[var(--border-focus)] hover:shadow-md ${statusColors[task.status]}`}
+                    className={`rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-4 transition-all duration-200 hover:border-[var(--border-focus)] hover:shadow-md cursor-pointer ${statusColors[task.status]}`}
+                    onClick={() => { setViewingTask(task); setModal("view"); }}
                   >
                     <p className="font-semibold text-[var(--foreground)] leading-snug">{task.title}</p>
                     {task.description && (
@@ -311,7 +319,7 @@ export default function TasksPage() {
                         {task.document.name}
                       </a>
                     )}
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                       {task.assignee?.id === currentUserId && !task.acceptedAt && (
                         <button onClick={() => acceptTask(task.id)} className="rounded-lg bg-[var(--accent)] text-[var(--background)] text-xs font-medium px-3 py-2 hover:bg-[var(--accent-hover)]">
                           Принять
@@ -327,7 +335,7 @@ export default function TasksPage() {
                           Подтвердить
                         </button>
                       )}
-                      <button onClick={() => openEdit(task)} className="rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] text-xs font-medium px-3 py-2 hover:bg-[var(--background-elevated)] hover:text-[var(--foreground)]">
+                      <button onClick={() => { setModal("none"); openEdit(task); setModal("edit"); }} className="rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] text-xs font-medium px-3 py-2 hover:bg-[var(--background-elevated)] hover:text-[var(--foreground)]">
                         Изменить
                       </button>
                       <button onClick={() => remove(task.id)} className="rounded-lg text-[var(--danger)] text-xs font-medium px-3 py-2 hover:bg-[var(--danger)]/10">
@@ -342,7 +350,59 @@ export default function TasksPage() {
         </div>
       )}
 
-      {modal !== "none" && (
+      {modal === "view" && viewingTask && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto" onClick={() => { setModal("none"); setViewingTask(null); }}>
+          <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl my-0 sm:my-4 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 sm:p-8 border-b border-[var(--border)] shrink-0">
+              <h3 className="text-xl font-bold text-[var(--foreground)]">{viewingTask.title}</h3>
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                {statusLabels[viewingTask.status]} · {priorityLabels[viewingTask.priority]}
+              </p>
+            </div>
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 min-h-0 space-y-4">
+              {viewingTask.description ? (
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--foreground-muted)] mb-2">Описание</h4>
+                  <p className="text-[var(--foreground)] whitespace-pre-wrap">{viewingTask.description}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--foreground-muted)]">Описание не добавлено</p>
+              )}
+              {viewingTask.document && (
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--foreground-muted)] mb-2">Прикреплённый файл</h4>
+                  <a href={viewingTask.document.path} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--accent)] hover:bg-[var(--border)]/50 transition">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    {viewingTask.document.name}
+                  </a>
+                  <a href={`/api/files/${viewingTask.document.id}`} download={viewingTask.document.name} className="ml-3 text-sm text-[var(--foreground-muted)] hover:text-[var(--accent)]">
+                    Скачать
+                  </a>
+                </div>
+              )}
+              <div className="pt-2 border-t border-[var(--border)] text-sm text-[var(--foreground-muted)]">
+                <p>Исполнитель: {viewingTask.assignee?.name ?? "Не назначен"}</p>
+                <p>Срок: {viewingTask.dueDate ? formatDate(viewingTask.dueDate) : "—"}</p>
+                {viewingTask.status === "done" && viewingTask.confirmedBy && (
+                  <p>Подтвердил: {viewingTask.confirmedBy.name}</p>
+                )}
+              </div>
+            </div>
+            <div className="p-6 sm:p-8 border-t border-[var(--border)] flex gap-3">
+              <button type="button" onClick={() => { setModal("none"); setViewingTask(null); }} className="flex-1 rounded-xl border border-[var(--border)] py-3.5 text-[var(--foreground)] font-medium hover:bg-[var(--background-elevated)]">
+                Закрыть
+              </button>
+              <button type="button" onClick={() => { setModal("none"); setViewingTask(null); openEdit(viewingTask); setModal("edit"); }} className="flex-1 rounded-xl bg-[var(--accent)] text-[var(--background)] py-3.5 font-semibold hover:bg-[var(--accent-hover)]">
+                Изменить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal !== "none" && modal !== "view" && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto" onClick={() => setModal("none")}>
           <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl my-0 sm:my-4 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 sm:p-8 border-b border-[var(--border)] shrink-0">
@@ -432,7 +492,7 @@ export default function TasksPage() {
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                 >
                   <option value="">Не назначен</option>
-                  {projectMembers.map((m) => (
+                  {(projectMembers ?? []).map((m) => (
                     <option key={m.userId} value={m.userId}>{m.user.name}</option>
                   ))}
                 </select>
@@ -446,7 +506,7 @@ export default function TasksPage() {
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] px-4 py-3 text-[var(--foreground)]"
                 >
                   <option value="">Без документа</option>
-                  {projectFiles.map((f) => (
+                  {(projectFiles ?? []).map((f) => (
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
